@@ -1,10 +1,15 @@
 const mysql = require('mysql2/promise');
 
 const credentials = {
-	host: 'am2012.brighton.domains',
+	/*host: 'am2012.brighton.domains',
 	user: 'am2012_main',
 	password: 'Fer33doubleH?',
-	database: 'am2012_tv_story_selector'
+	database: 'am2012_tv_story_selector'*/
+
+	host: '127.0.0.1',
+	user: 'root',
+	password: '',
+	database: 'tv_story_selector'
 };
 
 async function query(sql, params) {

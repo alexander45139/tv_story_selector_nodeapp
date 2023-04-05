@@ -37,6 +37,33 @@ async function getAllSeries() {
     return {status, data};
 }
 
+async function getSeriesId(req) {
+    let status = 500, data = null;
+    try {
+        const name = req.query.name;
+        const premiered = req.query.premiered;
+        if (name && premiered) {
+            const sql = 'SELECT SeriesID FROM Series WHERE Name = ? AND Premiered = ? LIMIT 1';
+    		const rows = await db.query(sql, [name, premiered]);
+    
+    		if (rows) {
+    			status = 200;
+    			data = {
+    				'seriesId': rows[0].SeriesID
+    			};
+    		} else {
+    			status = 204;
+    		}
+        } else {
+            status = 400;
+        }
+    } catch(e) {
+        console.error(e);
+    }
+    
+    return {status, data};
+}
+
 async function getSeries(req) {
     let status = 500, data = null;
     try {
@@ -192,7 +219,7 @@ async function getEpisodes(tvMazeId, episodateId, imdbId) {
 async function isSeriesInDb(seriesName, premieredYear) {
     let doesExist = null;
     try {
-		if (seriesName, premieredYear) {
+		if (seriesName && premieredYear) {
 			const sql = 'SELECT SeriesID, Name, Premiered, TvMazeID, EpisodateID, ImdbID FROM Series WHERE Name = ? AND Premiered = ?';
 			const rows = await db.query(sql, [seriesName, premieredYear]);
 			
@@ -216,17 +243,19 @@ async function postSeries(req) {
 		data = null;
 	try {
 		const name = req.body.name;
-		const premiered = req.body.name;
-		const tvMazeId = req.body.tvMazeId;
-		const episodateId = req.body.episodateId;
-		const imdbId = req.body.imdbId;
+		const premiered = req.body.premiered;
+        const image = req.body.image;
+		const tvMazeId = req.body.tvmazeid;
+		const episodateId = req.body.episodateid;
+		const imdbId = req.body.imdbid;
 		
 		if (name && premiered && (tvMazeId || episodateId || imdbId) && !(await isSeriesInDb(name, premiered))) {
-		    const sql = 'INSERT INTO Series (Name, Premiered, TvMazeID, EpisodateID, ImdbID)'
-					+ ' VALUES (?, ?, ?, ?, ?)';
-			const result = await db.query(sql, [name, premiered, tvMazeId, episodateId, imdbId]);
+		    const sql = 'INSERT INTO Series (Name, Premiered, Image, TvMazeID, EpisodateID, ImdbID)'
+					+ ' VALUES (?, ?, ?, ?, ?, ?)';
+			const result = await db.query(sql, [name, premiered, image, tvMazeId, episodateId, imdbId]);
 		
     		if (result.affectedRows) {
+
     			status = 201;
     			data = {'id': result.insertId};
     		}
@@ -317,7 +346,7 @@ async function postStories(req) {
 		if (seriesId && fetchedSeries.status == 200) {
 		    const getWikiContent = async (title) => {
                 let content = null;
-                  
+                
                 const pageData = await rp({
                     method: 'GET',
                     url: `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURI(title)}&format=json`,
@@ -568,8 +597,18 @@ app.get('/tv_story_selector/getAllSeries', async (req, res) => {
     }
 })
 
-app.get('/tv_story_selector/getSeries', async (req, res) => {
+app.get('/tv_story_selector/getSeriesId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin','*');
+    const {status, data} = await getSeriesId(req);
+    res.status(status);
+    if (data) {
+        res.json(data);
+    } else {
+        res.end();
+    }
+})
+
+app.post('/tv_story_selector/getSeries', async (req, res) => {
     const {status, data} = await getSeries();
     res.status(status);
     if (data) {
