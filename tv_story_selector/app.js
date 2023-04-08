@@ -67,10 +67,10 @@ async function getSeriesId(req) {
 async function getSeries(req) {
     let status = 500, data = null;
     try {
-        const seriesid = req.query.seriesid ? req.query.seriesid : req.body.seriesid;
-        if (seriesid && seriesid.length > 0 && seriesid.length <= 32) {
+        const seriesId = req.query.seriesid ? req.query.seriesid : req.body.seriesid;
+        if (seriesId && seriesId.length > 0 && seriesId.length <= 32) {
             const sql = 'SELECT SeriesID, Name, Premiered, TvMazeID, EpisodateID, ImdbID FROM Series WHERE SeriesID = ? LIMIT 1';
-    		const rows = await db.query(sql, [id]);
+    		const rows = await db.query(sql, [seriesId]);
     
     		if (rows) {
     			status = 200;
@@ -255,7 +255,6 @@ async function postSeries(req) {
 			const result = await db.query(sql, [name, premiered, image, tvMazeId, episodateId, imdbId]);
 		
     		if (result.affectedRows) {
-
     			status = 201;
     			data = {'id': result.insertId};
     		}
@@ -436,7 +435,6 @@ async function postStories(req) {
                                     part = "first";
                                 } else {
                                     part = "next";
-                                    
                                 }
                             }
                         }
@@ -452,8 +450,8 @@ async function postStories(req) {
 		          episodes = await getEpisodes(series.tvMazeId, series.episodateId, series.imdbId),
 		          fetchedNumberOfEpisodesInDb = await getNumberOfEpisodesInDb(req);
 		    
-		    let epIndex = 0,
-                currentEpisode,
+		    let epIndex = 0;
+            let currentEpisode,
                 nextEpisode,
                 story,
                 epInfo;
@@ -468,88 +466,90 @@ async function postStories(req) {
             } else if (fetchedNumberOfEpisodesInDb.status == 500) {
                 epIndex = null;
             }
-            
-            while (epIndex && epIndex < episodes.length) {
-                currentEpisode = episodes[epIndex];
-                nextEpisode = episodes[epIndex + 1] ? episodes[epIndex + 1] : null;
-                story = [];
-                
-                if ((currentEpisode.name.endsWith(`(1)`) && nextEpisode.endsWith(`(2)`)
-                    || (currentEpisode.name.toLowerCase().includes(`part one`) && nextEpisode.name.toLowerCase().includes(`part two`))
-                    || (currentEpisode.name.toLowerCase().includes(`part 1`) && nextEpisode.name.toLowerCase().includes(`part 2`))
-                    || (currentEpisode.name.toLowerCase().includes(`part i`) && nextEpisode.name.toLowerCase().includes("part ii"))
-                    || (currentEpisode.name.toLowerCase().includes(`chapter one`) && nextEpisode.name.toLowerCase().includes(`chapter two`))
-                    || (currentEpisode.name.toLowerCase().includes(`chapter 1`) && nextEpisode.name.toLowerCase().includes(`chapter 2`))
-                    || (
-                        nextEpisode
-                        && (
-                            currentEpisode.name.replace(` 1`, ``) === nextEpisode.name.replace(` 2`, ``)
-                            && !currentEpisode.name.toLowerCase().includes(`episode`)
-                        )
-                    )
-                )) {
-                    story.push(currentEpisode, nextEpisode);
-                    epIndex += 2;
-                    let part = 3;
+
+            if (epIndex != null) {
+                while (epIndex < episodes.length) {
+                    currentEpisode = episodes[epIndex];
+                    nextEpisode = episodes[epIndex + 1] ? episodes[epIndex + 1] : null;
+                    story = [];
                     
-                    while (
-                        epIndex < episodes.length
-                        &&
-                        (
-                            !episodes[epIndex].name.toLowerCase().includes(`part one`)
+                    if ((currentEpisode.name.endsWith(`(1)`) && nextEpisode.name.endsWith(`(2)`)
+                        || (currentEpisode.name.toLowerCase().includes(`part one`) && nextEpisode.name.toLowerCase().includes(`part two`))
+                        || (currentEpisode.name.toLowerCase().includes(`part 1`) && nextEpisode.name.toLowerCase().includes(`part 2`))
+                        || (currentEpisode.name.toLowerCase().includes(`part i`) && nextEpisode.name.toLowerCase().includes("part ii"))
+                        || (currentEpisode.name.toLowerCase().includes(`chapter one`) && nextEpisode.name.toLowerCase().includes(`chapter two`))
+                        || (currentEpisode.name.toLowerCase().includes(`chapter 1`) && nextEpisode.name.toLowerCase().includes(`chapter 2`))
+                        || (
+                            nextEpisode
                             && (
-                                !episodes[epIndex].name.toLowerCase().includes(`part 1`)
-                                || episodes[epIndex].name.toLowerCase().includes(`part 10`)
-                            )
-                            && !episodes[epIndex].name.toLowerCase().includes(`part i`)
-                            && !episodes[epIndex].name.toLowerCase().includes(`chapter one`)
-                            && (
-                                !episodes[epIndex].name.toLowerCase().includes(`chapter 1:`)
-                                || !episodes[epIndex].name.toLowerCase().includes(`chapter 1 `)
+                                currentEpisode.name.replace(` 1`, ``) === nextEpisode.name.replace(` 2`, ``)
+                                && !currentEpisode.name.toLowerCase().includes(`episode`)
                             )
                         )
-                        &&
-                        (
-                            episodes[epIndex].name.endsWith(`(${part})`)
-                            || episodes[epIndex].name.toLowerCase().includes(`part `)
-                            || episodes[epIndex].name.toLowerCase().includes(`chapter `)
-                            || (
-                              episodes[epIndex + 1]
-                              && (episodes[epIndex].name.replace(` ${part}`, ``) === episodes[epIndex + 1].name.replace(` ${part + 1}`, ``))
-                            )
-                        )
-                    ) {
-                        story.push(episodes[epIndex]);
-                        part += 1;
-                        epIndex += 1;
-                    }
-                    
-                    tempStatusAndData = await postStory(story, seriesId);
-                    data.push(tempStatusAndData.data);
-                    status = (status == 201) ? 201 : tempStatusAndData.status;
-                } else {
-                    epInfo = await getMultiPartEpisode(currentEpisode.name, series.name);
-                    
-                    if (epInfo === "first") {
+                    )) {
                         story.push(currentEpisode, nextEpisode);
                         epIndex += 2;
+                        let part = 3;
                         
-                        epInfo = await getMultiPartEpisode(episodes[epIndex].name, series.name);
-                        
-                        while (epInfo === "next") {
+                        while (
+                            epIndex < episodes.length
+                            &&
+                            (
+                                !episodes[epIndex].name.toLowerCase().includes(`part one`)
+                                && (
+                                    !episodes[epIndex].name.toLowerCase().includes(`part 1`)
+                                    || episodes[epIndex].name.toLowerCase().includes(`part 10`)
+                                )
+                                && !episodes[epIndex].name.toLowerCase().includes(`part i`)
+                                && !episodes[epIndex].name.toLowerCase().includes(`chapter one`)
+                                && (
+                                    !episodes[epIndex].name.toLowerCase().includes(`chapter 1:`)
+                                    || !episodes[epIndex].name.toLowerCase().includes(`chapter 1 `)
+                                )
+                            )
+                            &&
+                            (
+                                episodes[epIndex].name.endsWith(`(${part})`)
+                                || episodes[epIndex].name.toLowerCase().includes(`part `)
+                                || episodes[epIndex].name.toLowerCase().includes(`chapter `)
+                                || (
+                                  episodes[epIndex + 1]
+                                  && (episodes[epIndex].name.replace(` ${part}`, ``) === episodes[epIndex + 1].name.replace(` ${part + 1}`, ``))
+                                )
+                            )
+                        ) {
                             story.push(episodes[epIndex]);
+                            part += 1;
                             epIndex += 1;
-                            epInfo = await getMultiPartEpisode(episodes[epIndex].name, series.name);
                         }
                         
                         tempStatusAndData = await postStory(story, seriesId);
                         data.push(tempStatusAndData.data);
                         status = (status == 201) ? 201 : tempStatusAndData.status;
                     } else {
-                        tempStatusAndData = await postStory(currentEpisode, seriesId);
-                        data.push(tempStatusAndData.data);
-                        status = (status == 201) ? 201 : tempStatusAndData.status;
-                        epIndex += 1;
+                        epInfo = await getMultiPartEpisode(currentEpisode.name, series.name);
+                        
+                        if (epInfo === "first") {
+                            story.push(currentEpisode, nextEpisode);
+                            epIndex += 2;
+                            
+                            epInfo = await getMultiPartEpisode(episodes[epIndex].name, series.name);
+                            
+                            while (epInfo === "next") {
+                                story.push(episodes[epIndex]);
+                                epIndex += 1;
+                                epInfo = await getMultiPartEpisode(episodes[epIndex].name, series.name);
+                            }
+                            
+                            tempStatusAndData = await postStory(story, seriesId);
+                            data.push(tempStatusAndData.data);
+                            status = (status == 201) ? 201 : tempStatusAndData.status;
+                        } else {
+                            tempStatusAndData = await postStory(currentEpisode, seriesId);
+                            data.push(tempStatusAndData.data);
+                            status = (status == 201) ? 201 : tempStatusAndData.status;
+                            epIndex += 1;
+                        }
                     }
                 }
             }
@@ -608,8 +608,8 @@ app.get('/tv_story_selector/getSeriesId', async (req, res) => {
     }
 })
 
-app.post('/tv_story_selector/getSeries', async (req, res) => {
-    const {status, data} = await getSeries();
+app.get('/tv_story_selector/getSeries', async (req, res) => {
+    const {status, data} = await getSeries(req);
     res.status(status);
     if (data) {
         res.json(data);
