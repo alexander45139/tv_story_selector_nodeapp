@@ -16,6 +16,17 @@ class Episode {
     }
 }
 
+class Story {
+    constructor(name, episodes, numberOfEpisodes, description, duration, seriesId) {
+        this.Name = name;
+        this.Episodes = episodes;
+        this.NumberOfEpisodes = numberOfEpisodes;
+        this.Description = description;
+        this.DurationMinutes = duration;
+        this.SeriesID = seriesId;
+    }
+}
+
 async function getAllSeries() {
     let status = 500, data = null;
     try {
@@ -268,75 +279,57 @@ async function postSeries(req) {
 	return {status, data};
 }
 
-async function postStory(story, seriesId) {
-    let status = 500,
-		data = null;
-	try {
-	    let name = null,
-            episodes = null,
-            numberOfEpisodes = null,
-            description = null,
-            duration = null;
+function sortStory(story, seriesId) {
+    let name = null,
+        episodes = null,
+        numberOfEpisodes = null,
+        description = null,
+        duration = null;
+        
+    if (story) {
+        if (story.length > 1) {
+            name = story[0].name;
             
-        if (story) {
-		    if (story.length > 1) {
-		        name = story[0].name;
-		        
-		        const firstEp = name;
-		        
-		        [", part", ": part", " part", ", Part", ": Part", " Part", ", Part", ": Part", " Part", " (1)", " (i)"].forEach(multiPartSplit => {
-		            if (firstEp.includes(multiPartSplit)) {
-    		            name = firstEp.split(multiPartSplit)[0];
-    		        }
-		        });
-                
-                episodes = story[0].name;
-                duration = story[0].duration ? story[0].duration : null;
-                
-                var storyIndex = 1;
-                
-                while (storyIndex < story.length) {
-                    episodes = episodes + ', ' + story[storyIndex].name;
-                    if (duration) {
-                        duration += story[storyIndex].duration;
-                    }
-                    storyIndex += 1;
+            const firstEp = name;
+            
+            [", part", ": part", " part", ", Part", ": Part", " Part", ", Part", ": Part", " Part", " (1)", " (i)"].forEach(multiPartSplit => {
+                if (firstEp.includes(multiPartSplit)) {
+                    name = firstEp.split(multiPartSplit)[0];
                 }
-                
-                numberOfEpisodes = story.length;
-                description = story[0].description;
-                seriesId;
-            } else {
-                name = story.name;
-                episodes = story.name;
-                numberOfEpisodes = 1;
-                description = story.description;
-                duration = story.duration;
-                seriesId;
+            });
+            
+            episodes = story[0].name;
+            duration = story[0].duration ? story[0].duration : null;
+            
+            var storyIndex = 1;
+            
+            while (storyIndex < story.length) {
+                episodes = episodes + ', ' + story[storyIndex].name;
+                if (duration) {
+                    duration += story[storyIndex].duration;
+                }
+                storyIndex += 1;
             }
             
-            const sql = 'INSERT INTO Stories (Name, Episodes, NumberOfEpisodes, Description, DurationMinutes, SeriesID)'
-                + ' VALUES (?, ?, ?, ?, ?, ?)';
-            const result = await db.query(sql, [name, episodes, numberOfEpisodes, description, duration, seriesId]);
-            
-            if (result.affectedRows) {
-                status = 201;
-                data = {'id': result.insertId};
-            }
-		} else {
-			status = 400;
-		}
-	} catch(e) {
-		console.error(e);
-	}
+            numberOfEpisodes = story.length;
+            description = story[0].description;
+            seriesId;
+        } else {
+            name = story.name;
+            episodes = story.name;
+            numberOfEpisodes = 1;
+            description = story.description;
+            duration = story.duration;
+            seriesId;
+        }
+    }
     
-    return {status, data};
+    return new Story(name, episodes, numberOfEpisodes, description, duration, seriesId);
 }
 
 async function postStories(req) {
 	let status = 500,
-		data = null,
-		tempStatusAndData = null;
+		data = null;
 	try {
 		const seriesId = req.body.seriesid;
 		
@@ -450,11 +443,13 @@ async function postStories(req) {
 		          episodes = await getEpisodes(series.tvMazeId, series.episodateId, series.imdbId),
 		          fetchedNumberOfEpisodesInDb = await getNumberOfEpisodesInDb(req);
 		    
-		    let epIndex = 0;
-            let currentEpisode,
+		    let epIndex = 0,
+                currentEpisode,
                 nextEpisode,
                 story,
                 epInfo;
+
+            const stories = [];
                 
             if (fetchedNumberOfEpisodesInDb.status == 200) {
                 const numberOfEpisodesInDb = parseInt(fetchedNumberOfEpisodesInDb.data.numberofepisodes, 10);
@@ -523,9 +518,7 @@ async function postStories(req) {
                             epIndex += 1;
                         }
                         
-                        tempStatusAndData = await postStory(story, seriesId);
-                        data.push(tempStatusAndData.data);
-                        status = (status == 201) ? 201 : tempStatusAndData.status;
+                        stories.push(sortStory(story, seriesId));
                     } else {
                         epInfo = await getMultiPartEpisode(currentEpisode.name, series.name);
                         
@@ -541,16 +534,43 @@ async function postStories(req) {
                                 epInfo = await getMultiPartEpisode(episodes[epIndex].name, series.name);
                             }
                             
-                            tempStatusAndData = await postStory(story, seriesId);
-                            data.push(tempStatusAndData.data);
-                            status = (status == 201) ? 201 : tempStatusAndData.status;
+                            stories.push(sortStory(story, seriesId));
                         } else {
-                            tempStatusAndData = await postStory(currentEpisode, seriesId);
-                            data.push(tempStatusAndData.data);
-                            status = (status == 201) ? 201 : tempStatusAndData.status;
+                            stories.push(sortStory(currentEpisode, seriesId));
                             epIndex += 1;
                         }
                     }
+                }
+
+                let sql = 'INSERT INTO Stories (Name, Episodes, NumberOfEpisodes, Description, DurationMinutes, SeriesID) VALUES ';
+
+                const values = [];
+
+                let stryIndex = 0,
+                    stry;
+
+                while (stryIndex < stories.length) {
+                    stry = stories[stryIndex];
+
+                    sql += '(?, ?, ?, ?, ?, ?)' + ((stryIndex < stories.length - 1) ? ', ' : '');
+
+                    values.push(
+                        stry.Name,
+                        stry.Episodes,
+                        stry.NumberOfEpisodes,
+                        stry.Description,
+                        stry.DurationMinutes,
+                        stry.SeriesID
+                    );
+
+                    stryIndex += 1;
+                }
+                
+                const result = await db.query(sql, values);
+                
+                if (result.affectedRows) {
+                    status = 201;
+                    data = {'ids': result.map(r => r.insertId)};
                 }
             }
 		} else {
