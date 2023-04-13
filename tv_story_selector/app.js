@@ -111,18 +111,18 @@ async function getStories(req) {
     try {
 		const seriesid = req.query.seriesid;
 		if (seriesid && seriesid.length > 0 && seriesid.length <= 32) {
-			const sql = 'SELECT StoryID, Name, Episodes, NumberOfEpisodes, Description, DurationMinutes FROM Stories WHERE SeriesID = ?';
+			const sql = 'SELECT StoryID, Name, Episodes, NumberOfEpisodes, Description, DurationMinutes, LastWatched FROM Stories WHERE SeriesID = ?';
 			const rows = await db.query(sql, [seriesid]);
 			
-			const sql2 = 'SELECT Name, Premiered FROM Series WHERE SeriesID = ?';
-			const series = await db.query(sql2, [seriesid]);
+			const sql2 = 'SELECT Name, Premiered FROM Series WHERE SeriesID = ? LIMIT 1';
+			const rows2 = await db.query(sql2, [seriesid]);
 			
-			if (rows && series) {
+			if (rows && rows2) {
 				status = 200;
 				data = {
 					'seriesid': seriesid,
-					'series': series,
-					'stories': rows
+					'stories': rows,
+                    'series': rows2[0]
 				};
 			} else {
 				status = 204;
@@ -298,17 +298,19 @@ function sortStory(story, seriesId) {
                 }
             });
             
-            episodes = story[0].name;
+            episodes = `S${story[0].seasonNumber}E${story[0].episodeNumber}: ${story[0].name}`;
             duration = story[0].duration ? story[0].duration : null;
             
-            var storyIndex = 1;
+            let episodeIndex = 1,
+                episode;
             
-            while (storyIndex < story.length) {
-                episodes = episodes + ', ' + story[storyIndex].name;
+            while (episodeIndex < story.length) {
+                episode = story[episodeIndex];
+                episodes += `, S${episode.seasonNumber}E${episode.episodeNumber}: ${episode.name}`;
                 if (duration) {
-                    duration += story[storyIndex].duration;
+                    duration += episode.duration;
                 }
-                storyIndex += 1;
+                episodeIndex += 1;
             }
             
             numberOfEpisodes = story.length;
@@ -316,7 +318,7 @@ function sortStory(story, seriesId) {
             seriesId;
         } else {
             name = story.name;
-            episodes = story.name;
+            episodes = `S${story.seasonNumber}E${story.episodeNumber}: ${story.name}`;
             numberOfEpisodes = 1;
             description = story.description;
             duration = story.duration;
@@ -583,14 +585,16 @@ async function postStories(req) {
 	return {status, data};
 }
 
-/* async function fixPothole(req) {
+async function markStoryAsWatched(req) {
 	let status = 500,
 		data = null;
 	try {
-		const potholeid = req.body.potholeid;
-		if (potholeid) {
-			const sql = 'UPDATE potholes SET IsFixed = 1 WHERE PotholeID = ?';
-			const result = await db.query(sql, [potholeid]);
+		const storyid = req.body.storyid;
+		if (storyid) {
+            const dateToday = new Date().toISOString().replace("T", " ").replace("Z", "");
+
+			const sql = 'UPDATE Stories SET LastWatched = ? WHERE StoryID = ?';
+			const result = await db.query(sql, [dateToday, storyid]);
 			
 			if (result.affectedRows) {
 				status = 201;
@@ -604,7 +608,7 @@ async function postStories(req) {
 	}
 	
 	return {status, data};
-} */
+}
 
 app.get('/tv_story_selector/getAllSeries', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin','*');
@@ -669,12 +673,22 @@ app.post('/tv_story_selector/postStories', async (req, res) => {
     }
 })
 
+app.post('/tv_story_selector/markStoryAsWatched', async (req, res) => {
+    const {status, data} = await markStoryAsWatched(req);
+    res.status(status);
+    if (data) {
+        res.json(data);
+    } else {
+        res.end();
+    }
+})
+
 app.put('/report_pothole_app', async (req, res) => {
     res.status(405);
 	res.end();
 })
 
-app.delete('/report_pothole_app', async (req, res) => {
+app.delete('/tv_story_selector', async (req, res) => {
 	res.status(405);
 	res.end();
 })
