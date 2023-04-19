@@ -114,7 +114,7 @@ async function getStories(req) {
 
 		if (seriesid && seriesid.length > 0 && seriesid.length <= 32) {
 			const sql = 'SELECT StoryID, Name, Episodes, NumberOfEpisodes, Description, DurationMinutes, LastWatched FROM Stories'
-                        + ' WHERE SeriesID = ? AND LastWatched <= ? OR LastWatched IS NULL';
+                        + ' WHERE SeriesID = ? AND (LastWatched <= ? OR LastWatched IS NULL)';
 			const rows = await db.query(sql, [seriesid, maxlastwatched]);
 			
 			const sql2 = 'SELECT Name, Premiered FROM Series WHERE SeriesID = ? LIMIT 1';
