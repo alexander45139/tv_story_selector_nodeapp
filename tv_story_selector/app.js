@@ -110,9 +110,12 @@ async function getStories(req) {
     let status = 500, data = null;
     try {
 		const seriesid = req.query.seriesid;
+        const maxlastwatched = req.query.maxlastwatched ? req.query.maxlastwatched : new Date().toISOString().replace("T", " ").replace("Z", "");
+
 		if (seriesid && seriesid.length > 0 && seriesid.length <= 32) {
-			const sql = 'SELECT StoryID, Name, Episodes, NumberOfEpisodes, Description, DurationMinutes, LastWatched FROM Stories WHERE SeriesID = ?';
-			const rows = await db.query(sql, [seriesid]);
+			const sql = 'SELECT StoryID, Name, Episodes, NumberOfEpisodes, Description, DurationMinutes, LastWatched FROM Stories'
+                        + ' WHERE SeriesID = ? AND LastWatched <= ? OR LastWatched IS NULL';
+			const rows = await db.query(sql, [seriesid, maxlastwatched]);
 			
 			const sql2 = 'SELECT Name, Premiered FROM Series WHERE SeriesID = ? LIMIT 1';
 			const rows2 = await db.query(sql2, [seriesid]);
