@@ -575,7 +575,7 @@ async function postStories(req) {
                 
                 if (result.affectedRows) {
                     status = 201;
-                    data = {'ids': result.map(r => r.insertId)};
+                    data = {'rows': result.affectedRows};
                 }
             }
 		} else {
