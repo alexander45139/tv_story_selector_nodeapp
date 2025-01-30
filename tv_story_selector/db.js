@@ -5,8 +5,11 @@ const pool = new Pool({
     host: 'localhost',
     database: 'tv_story_selector',
     user: 'tv_story_user',
-    pssword: 'user_123'
+    pssword: 'user_123',
+    port: 5432
 });
+
+module.exports = pool;
 
 
 /* MYSQL */
